@@ -1,0 +1,78 @@
+#include <Encoder.h>
+#include <Wire.h>
+
+#define SLAVE_ADDRESS 0x04
+// Create relationship between motor input voltagePin
+int voltagePin = 9;
+int pwmOutput;
+int enablePin = 4;
+int Direction = 7;
+double sampleRate = 0.05;
+double Delay = sampleRate * 1000;
+double ki =0.9;//1.8;//.9;// 0.6;//0.07;//
+double kp = 1.5;//3.2;// 1.5; //0.7;//4.75; //
+double kd = .1;//.2;//0.05; //1.2;//.53; //
+double thetaNew;
+double thetaDesired = 3.14;
+
+
+unsigned long currentTime, previousTime;
+double elapsedTime;
+double error;
+double lastError;
+double input, output, setPoint;
+double cumError, rateError;
+Encoder encoder(3, 6);
+
+double PIDmotorcontroller(double thetaNew){
+    currentTime = millis();
+    elapsedTime = (double)(currentTime - previousTime)/1000;
+    double out;
+    error = (thetaDesired - thetaNew);
+   
+    //Serial.println(error);
+       
+    cumError += (error * elapsedTime);
+    rateError = (error - lastError) / elapsedTime;
+    out = (kp * error) + (ki * cumError) + (kd * rateError);
+
+    if(out > 0){
+      digitalWrite(Direction, HIGH);
+      //Serial.print("high");
+    } else{
+      digitalWrite(Direction, LOW);
+     // Serial.print("low");
+    }
+
+    out = abs(out);
+   
+    if(out > 8){
+      out = 8;
+    }
+    //Serial.println(error);
+    lastError = error;
+    previousTime = currentTime;
+
+    return out;
+ 
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(enablePin, OUTPUT);
+  digitalWrite(enablePin, HIGH);
+  pinMode(voltagePin, OUTPUT);
+  pinMode(Direction, OUTPUT);
+  digitalWrite(Direction, LOW);
+ 
+}
+
+
+void loop() {
+  thetaNew = (6.2832/3200)*encoder.read();
+  Serial.println(thetaNew);
+  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew);
+  //Serial.println(pwmOutput);
+  delay(Delay);
+  analogWrite(voltagePin, pwmOutput);
+}
