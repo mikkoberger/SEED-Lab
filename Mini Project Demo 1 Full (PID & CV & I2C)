@@ -2,7 +2,7 @@
 #include <Wire.h>
 
 #define SLAVE_ADDRESS 0x04
-// Create relationship between motor input voltagePin
+// Defining general variables and designating voltage pins
 int voltagePin = 9;
 int pwmOutput;
 int enablePin = 4;
