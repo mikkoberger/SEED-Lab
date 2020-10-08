@@ -2,7 +2,7 @@
 #include <Wire.h>
 
 #define SLAVE_ADDRESS 0x04
-// Create relationship between motor input voltagePin
+// Defining Variables and necessary Pins
 int voltagePin = 9;
 int pwmOutput;
 int enablePin = 4;
@@ -15,27 +15,30 @@ double kd = .1;//.2;//0.05; //1.2;//.53; //
 double thetaNew;
 double thetaDesired = 3.14;
 
-
+// Defining PID variables 
 unsigned long currentTime, previousTime;
 double elapsedTime;
 double error;
 double lastError;
 double input, output, setPoint;
 double cumError, rateError;
+
+// Defining object from encoder class and designating proper pins (PIN 3 is interrupt pin)
 Encoder encoder(3, 6);
 
 double PIDmotorcontroller(double thetaNew){
-    currentTime = millis();
-    elapsedTime = (double)(currentTime - previousTime)/1000;
-    double out;
-    error = (thetaDesired - thetaNew);
+    currentTime = millis(); // Keeps track of time elapsed since start of program
+    elapsedTime = (double)(currentTime - previousTime)/1000; // Calculate elapsed time since last loop in seconds
+    double out; // Create output voltage variable 
+    error = (thetaDesired - thetaNew); // Calculate error between last angular position and desired position 
    
     //Serial.println(error);
        
-    cumError += (error * elapsedTime);
-    rateError = (error - lastError) / elapsedTime;
-    out = (kp * error) + (ki * cumError) + (kd * rateError);
+    cumError += (error * elapsedTime); // Integral term of PID
+    rateError = (error - lastError) / elapsedTime; // Derivative term of PID
+    out = (kp * error) + (ki * cumError) + (kd * rateError); // Calculating output with all PID terms
 
+    // Change direction of motor depending upon sign of out
     if(out > 0){
       digitalWrite(Direction, HIGH);
       //Serial.print("high");
@@ -46,33 +49,34 @@ double PIDmotorcontroller(double thetaNew){
 
     out = abs(out);
    
+    // If out exceeds 8 Volts, reset to 8 because that is maximum output voltage of battery
     if(out > 8){
       out = 8;
     }
     //Serial.println(error);
-    lastError = error;
-    previousTime = currentTime;
+    lastError = error; // Update lastError
+    previousTime = currentTime; // Update time
 
     return out;
  
 }
 
 void setup() {
-  Serial.begin(9600);
-  pinMode(enablePin, OUTPUT);
-  digitalWrite(enablePin, HIGH);
-  pinMode(voltagePin, OUTPUT);
-  pinMode(Direction, OUTPUT);
-  digitalWrite(Direction, LOW);
+  Serial.begin(9600); // Baud Rate
+  pinMode(enablePin, OUTPUT); // Defining Motor Pin
+  digitalWrite(enablePin, HIGH); // Turning on Motor
+  pinMode(voltagePin, OUTPUT); // Defining Voltage pin
+  pinMode(Direction, OUTPUT); // Defining output
+  digitalWrite(Direction, LOW); // Motor Spin direction as Low
  
 }
 
-
+// Loop to be executed every cycle
 void loop() {
-  thetaNew = (6.2832/3200)*encoder.read();
-  Serial.println(thetaNew);
-  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew);
-  //Serial.println(pwmOutput);
-  delay(Delay);
-  analogWrite(voltagePin, pwmOutput);
+  thetaNew = (6.2832/3200)*encoder.read(); // Getting encoder reading and converting to radians
+  Serial.println(thetaNew); // Printing current reading to serial terminal
+  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew); // Converting voltage to PWM output
+  //Serial.println(pwmOutput); 
+  delay(Delay); // Delay of 1/20 of a second
+  analogWrite(voltagePin, pwmOutput); // Write PWM output to voltage pin
 }
