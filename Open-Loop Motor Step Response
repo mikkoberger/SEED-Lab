@@ -1,78 +1,66 @@
 #include <Encoder.h>
-#include <Wire.h>
-
-#define SLAVE_ADDRESS 0x04
-// Create relationship between motor input voltagePin
+// Defining naming convention between Pins
 int voltagePin = 9;
-int pwmOutput;
+int Voltage = 50;
 int enablePin = 4;
 int Direction = 7;
-double sampleRate = 0.05;
-double Delay = sampleRate * 1000;
-double ki =0.9;//1.8;//.9;// 0.6;//0.07;//
-double kp = 1.5;//3.2;// 1.5; //0.7;//4.75; //
-double kd = .1;//.2;//0.05; //1.2;//.53; //
-double thetaNew;
-double thetaDesired = 3.14;
-
-
-unsigned long currentTime, previousTime;
-double elapsedTime;
-double error;
-double lastError;
-double input, output, setPoint;
-double cumError, rateError;
-Encoder encoder(3, 6);
-
-double PIDmotorcontroller(double thetaNew){
-    currentTime = millis();
-    elapsedTime = (double)(currentTime - previousTime)/1000;
-    double out;
-    error = (thetaDesired - thetaNew);
-   
-    //Serial.println(error);
-       
-    cumError += (error * elapsedTime);
-    rateError = (error - lastError) / elapsedTime;
-    out = (kp * error) + (ki * cumError) + (kd * rateError);
-
-    if(out > 0){
-      digitalWrite(Direction, HIGH);
-      //Serial.print("high");
-    } else{
-      digitalWrite(Direction, LOW);
-     // Serial.print("low");
-    }
-
-    out = abs(out);
-   
-    if(out > 8){
-      out = 8;
-    }
-    //Serial.println(error);
-    lastError = error;
-    previousTime = currentTime;
-
-    return out;
- 
-}
+Encoder encoder(3, 6); // Creating an object from the encoder class with pin 3 as the interrupt
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // Baud rate
+  Serial.println("Time:    Voltage:  Velocity:   "); // Print Time elapsed, Voltage and Velocity of wheel
+  // Create pin outputs and initialize motor 
   pinMode(enablePin, OUTPUT);
   digitalWrite(enablePin, HIGH);
   pinMode(voltagePin, OUTPUT);
   pinMode(Direction, OUTPUT);
   digitalWrite(Direction, LOW);
- 
+  
 }
 
+int motorStepResponse(int x) {
+  // Define variable for Motor Step Response 
+  long lowerTime = 1000;
+  long upperTime = 2000;
+  long oldLocation;
+  long newLocation;
+  
+  // Sample every 1/20 of a second, create 50 ms Delay and 
+  double sampleRate = 0.05;
+  double Delay = sampleRate*1000;
+  double angularVelocity;
 
-void loop() {
-  thetaNew = (6.2832/3200)*encoder.read();
-  Serial.println(thetaNew);
-  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew);
-  //Serial.println(pwmOutput);
-  delay(Delay);
-  analogWrite(voltagePin, pwmOutput);
+  // Store elapsed time in a variable and convert to pwm
+  double currentTime = millis();
+  double actualVoltage = (255 / 7.5)* x;
+  
+  // Get values for 1 second only between 1 second and 2 seconds
+  if (millis() >= lowerTime && millis() <= upperTime){
+    analogWrite(voltagePin, x);
+    
+    // Get old location and new location
+    oldLocation = encoder.read();
+    delay(Delay);
+    newLocation = encoder.read();
+    
+    // Calculate change in angular position and calculate angular velocity 
+    double deltaPosition = (newLocation - oldLocation)*(6.2832/3200);
+    angularVelocity = (deltaPosition) / (sampleRate); 
+    
+    // Print updated values to serial terminal
+    Serial.print(currentTime);
+    Serial.print("    ");
+    Serial.print(actualVoltage);
+    Serial.print("    ");
+    Serial.print(angularVelocity);
+    Serial.print("\n");
+  }
+  // Turn off motor
+  if (millis() > upperTime){
+    digitalWrite(enablePin, LOW);
+  }
+}
+
+void loop(){
+  motorStepResponse(Voltage);
 }
