@@ -18,17 +18,18 @@ int received_int;
 int thetaSend;
 int dummy;
 
-
+// Defining varaibles for discreet PID controller
 unsigned long currentTime, previousTime;
 double elapsedTime;
 double error;
 double lastError;
 double input, output, setPoint;
 double cumError, rateError;
-Encoder encoder(3, 6);
+Encoder encoder(3, 6); // Creating Encoder object from encoder class
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // Baud Rate
+  // Defining output pins, turning motor on and setting direction of rotation
   pinMode(enablePin, OUTPUT);
   digitalWrite(enablePin, HIGH);
   pinMode(voltagePin, OUTPUT);
@@ -39,63 +40,55 @@ void setup() {
   pinMode(13, OUTPUT);
   Wire.begin(SLAVE_ADDRESS);
   
-}//42
+}
 
 
 void loop() {
-  Wire.onReceive(receiveData);
-  thetaNew = (6.2832/3200)*encoder.read();
-  Serial.print(thetaNew);
-  dummy = encoder.read();
+  Wire.onReceive(receiveData); // Recieve quadrant from Computer Vision
+  thetaNew = (6.2832/3200)*encoder.read(); // Store current encoder reading in thetaNew in radians
+  dummy = encoder.read(); //Checking encoder reading
+  // Case statement for quadrant and update thetaDesired based upon quadrant to go to
   if(received_int == 1){
     thetaDesired = 1.57;
-    //Serial.print("Entered 1");
   }else if(received_int == 2){
     thetaDesired = 3.14;
-    //Serial.print("Entered 2");
   }else if(received_int == 3){
     thetaDesired = 4.71;
-    //Serial.print("Entered 3");
   }else if(received_int == 4){
     thetaDesired = 6.28;
-    //Serial.print("Entered 4");
   }
-  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew);
-  delay(Delay);
-  analogWrite(voltagePin, pwmOutput);
-  //thetaSend = encoder.read();
-  Wire.onRequest(sendData);
-  //Serial.print(thetaSend);
+  pwmOutput = (255/8)*PIDmotorcontroller(thetaNew); // Convert output voltage to PWM
+  delay(Delay); // Delay in between next reading and loop
+  analogWrite(voltagePin, pwmOutput); // Write value to voltage pin going to motor
+  Wire.onRequest(sendData); // Send back current theta reading to Pi
 }
 
 
 
 double PIDmotorcontroller(double thetaNew){
-    currentTime = millis();
-    elapsedTime = (double)(currentTime - previousTime)/1000;
-    double out;
-    error = (thetaDesired - thetaNew);
-   
-    //Serial.println(error);
-       
-    cumError += (error * elapsedTime);
-    rateError = (error - lastError) / elapsedTime;
-    out = (kp * error) + (ki * cumError) + (kd * rateError);
+    double out; // Create output voltage
+    currentTime = millis(); // Amount of time elapsed since program start
+    elapsedTime = (double)(currentTime - previousTime)/1000; // Elapsed time since last loop execution
+    error = (thetaDesired - thetaNew); // Calculate error in angular position of wheel
 
+    cumError += (error * elapsedTime); // Calculate integral term for discrete system
+    rateError = (error - lastError) / elapsedTime; // Calculate derivative term for discrete system
+    out = (kp * error) + (ki * cumError) + (kd * rateError); // Calculate output voltage to send to motor
+
+    // Change direction of wheel if sign of out flips
     if(out > 0){
       digitalWrite(Direction, HIGH);
-      //Serial.print("high");
     } else{
       digitalWrite(Direction, LOW);
-     // Serial.print("low");
     }
 
+    // If output voltage is greater than 8 volts, reset to 8 volts
     out = abs(out);
-   
     if(out > 8){
       out = 8;
     }
-    //Serial.println(out);
+    
+    // Update last error and previous time
     lastError = error;
     previousTime = currentTime;
 
@@ -103,6 +96,7 @@ double PIDmotorcontroller(double thetaNew){
  
 }
 
+// Function to recieve quadrant info from Computer Vision and store in received_int
 void receiveData(){
   while(Wire.available()){
     received_int = Wire.read();
@@ -110,13 +104,10 @@ void receiveData(){
   }
 }
 
+// Send most up to date position back to Pi to display on LCD screen
 void sendData(){
   //Wire.beginTransmission(SLAVE_ADDRESS);
-  thetaSend = int(10*thetaNew);
-  Serial.println(thetaSend);
-  Serial.println(thetaNew);
-  Serial.println(dummy);
-  Wire.write(thetaSend);
-  
+  thetaSend = int(10*thetaNew); // Accurate up to the tenth of a radian
+  Wire.write(thetaSend); // Sending one byte
   //Wire.endTransmission();
 }
