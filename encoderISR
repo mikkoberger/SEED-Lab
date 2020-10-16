@@ -1,0 +1,215 @@
+// Assignment 2: Localization for a robot
+
+//define and declare the pins needed 
+
+//for isr pins
+const int pinA_RW = 2;
+const int pinA_LW = 3;
+
+//delta for r and l wheels
+static double deltaTime_RW = 0;
+static double deltaTime_LW = 0;
+
+static int loopCount=0;
+
+//for read pins 
+const int pinB_RW = 8;
+const int pinB_LW = 10;
+
+//variables for the current and previous states
+static int pinAlast_RW = 0;
+static int pinAlast_LW = 0;
+
+static int pinAcurrent_RW = 0;
+static int pinAcurrent_LW = 0;
+
+static int pinBlast_RW = 0;
+static int pinBlast_LW = 0;
+
+static int pinBcurrent_RW = 0;
+static int pinBcurrent_LW = 0;
+
+//counts for wheel encoders with CW and the CCW
+
+static int RWcount = 0;
+static int LWcount = 0;
+
+//position values for the current and previous states
+static double lastPosition_RW = 0;
+static double lastPosition_LW = 0;
+
+static double currentPosition_RW = 0;
+static double currentPosition_LW = 0;
+
+//regular velocity
+static double vel_RW = 0;     static double vel_LW = 0;
+
+//angular velocity
+static double angVel_RW = 0;    static double angVel_LW = 0;
+
+//times
+static double timeLast_RW = 0;
+static double timeLast_LW = 0;
+
+static double timeCurrent_RW = 0;
+static double timeCurrent_LW = 0;
+
+//delta
+static double deltaTime = 0;  //initialize
+
+//x, y, and phi
+static double xOld = 0;
+static double yOld = 0;
+static double phiOld = 0;
+
+static double xNew = 0;
+static double yNew = 0;
+static double phiNew = 0;
+
+//in order to follow the time states for the linear x,y, phi
+static double lastTime = 0;
+static double currentTime = 0;
+
+//wheel dimensions (in meters) 
+const double radiusWheel = 0.05;
+const double dWheel = 0.1;  // the baseline
+
+//boolean to run isr
+bool intoISR = false;
+
+//allows the loop to run every one second using modulus
+static int prevLoopCount;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  
+  pinMode(pinA_RW, INPUT_PULLUP);                        //A Right
+  pinMode(pinA_LW, INPUT_PULLUP);                         //A Left
+
+  pinMode(pinB_RW, INPUT_PULLUP);                        //B Right
+  pinMode(pinB_LW, INPUT_PULLUP);                         //B Left
+
+  //ISR functions
+  attachInterrupt(digitalPinToInterrupt(pinA_RW), rightISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinA_LW), leftISR, CHANGE);
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  
+ 
+    currentTime = micros()/(double)1000000;  // in seconds
+    deltaTime = currentTime - lastTime;
+
+  //update equations to find current position and orientation
+  xNew = (double)xOld + (double)deltaTime*(double)cos((double)phiOld)*((double)vel_LW + (double)vel_RW)/(double)2;
+  yNew = (double)yOld + (double)deltaTime*(double)sin((double)phiOld)*((double)vel_LW + (double)vel_RW)/(double)2;
+  phiNew = (double)phiOld + (double)deltaTime*(double)((double)radiusWheel/(double)dWheel)*((double)vel_LW - (double)vel_RW); 
+
+  //print out x,y, phi for testing
+    //comment out for later
+    
+  if ((loopCount % 10) == 0) {
+//  Serial.print("xNew = ");  Serial.print(xNew);       Serial.print("\n");
+//  Serial.print("yNew = ");  Serial.print(yNew);       Serial.print("\n");
+//  Serial.print("phiNew = ");  Serial.print(phiNew);   Serial.print("\n");
+    Serial.print((double)currentTime);  Serial.print("\t"); Serial.print(vel_LW); Serial.print("\t"); Serial.println(vel_RW);
+  }
+
+  xOld = xNew;
+  yOld = yNew;
+  phiOld = phiNew;
+
+  intoISR = false;
+  lastTime = micros()/(double)1000000; //seconds
+  delay(100);   //run once per second
+  loopCount = loopCount + 1;
+
+  
+//  angVel_LW = double((LWcount-prevLoopCount)/1);
+//  prevLoopCount = LWcount;
+//  Serial.println(angVel_LW);
+
+}
+
+
+//isr for the right wheel
+void rightISR () {
+  intoISR = true;
+  
+  timeCurrent_RW = micros()/(double)1000000;
+  deltaTime_RW = timeCurrent_RW - timeLast_RW;
+  //timeLast_RW = timeCurrent_RW;   //not needed to update, but keep in mind this is happening
+  
+ 
+    pinAcurrent_RW = digitalRead(pinA_RW);
+    pinBcurrent_RW = digitalRead(pinB_RW);
+
+      if (pinAcurrent_RW == pinBcurrent_RW) {
+        RWcount = RWcount + 2;
+        currentPosition_RW = (double)RWcount*(double)2.0*(double)PI/(double)20.0;
+      } else {
+        RWcount = RWcount - 2;
+        currentPosition_RW = (double)RWcount*(double)2.0*(double)PI/(double)20.0;
+      }
+
+      //serial monitor output to test if this was counting by 2 and displaying velocity
+//  Serial.print("RW counts: ");                Serial.print(RWcount);         Serial.print("\n");
+//  Serial.print("velocity of right: ");      Serial.print(angVel_RW);         Serial.print("\n");
+
+    //calc time again //////NEW NEW NEW/////
+    //linear velocity from angular velocity
+  
+    angVel_RW = ((double)currentPosition_RW -(double)lastPosition_RW)/(double)deltaTime_RW;
+    vel_RW = (double)radiusWheel*(double)angVel_RW; //angvelocity in theta v=r*theta
+    timeLast_RW = timeCurrent_RW;   //update time
+    lastPosition_RW = currentPosition_RW;   //update position
+  
+  //updates
+  pinAlast_RW = pinAcurrent_RW;
+  pinBlast_RW = pinBcurrent_RW;
+ 
+}
+
+
+//for left wheel isr
+void leftISR () {
+  intoISR = true;
+
+  timeCurrent_LW = micros()/(double)1000000;
+
+  deltaTime_LW = timeCurrent_LW - timeLast_LW;
+  
+    pinAcurrent_LW = digitalRead(pinA_LW);
+    pinBcurrent_LW = digitalRead(pinB_LW);
+
+      if (pinAcurrent_LW == pinBcurrent_LW) {
+        LWcount = LWcount + 2;
+        currentPosition_LW = (double)LWcount*(double)2.0*(double)PI/(double)20.0;
+      } else {
+        LWcount = LWcount - 2;
+        currentPosition_LW = (double)LWcount*(double)2.0*(double)PI/(double)20.0;
+      }
+
+//serial print for testing counts and velocity
+//      Serial.print("LW counts: ");               Serial.print(LWcount);         Serial.print("\n");
+//      Serial.print("velocity of left: ");        Serial.print(angVel_LW);        Serial.print("\n");
+  
+
+
+//calc time again //////NEW NEW NEW/////
+  //linear velocity from angular velocity
+
+    angVel_LW = ((double)currentPosition_LW -(double)lastPosition_LW)/(double)deltaTime_LW;
+    vel_LW = (double)radiusWheel*(double)angVel_LW; //angvelocity in theta v=r*theta
+    timeLast_LW = timeCurrent_LW;
+    lastPosition_LW = currentPosition_LW;
+
+
+  //updates
+  pinAlast_LW = pinAcurrent_LW;
+  pinBlast_LW = pinBcurrent_LW;
+ 
+}
+
