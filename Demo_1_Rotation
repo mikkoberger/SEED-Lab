@@ -1,0 +1,144 @@
+#include <Encoder.h>
+#include <Wire.h>
+
+#define SLAVE_ADDRESS 0x04
+// Create relationship between motor input voltagePinR
+int voltagePinR = 9;
+int voltagePinL = 10;
+int pwmOutputR;
+int pwmOutputL;
+int enablePin = 4;
+int DirectionR  = 7;
+int DirectionL = 8;
+
+double sampleRate = 0.05; // 20 times per second
+double Delay = sampleRate * 1000;
+
+double ki = 0.25; //0.9;//1.8;//.9;// 0.6;//0.07;  //
+double kp = 2.0; //1.5;//3.2;// 1.5; //0.7;//4.75; //
+double kd = 0.09;//.1;//.2;//0.05; //1.2;//.53;    //
+
+
+double thetaNewR;
+double thetaNewL;
+double thetaDesired = 3.14*(1.78);
+
+
+unsigned long currentTimeR, previousTimeR;
+double elapsedTimeR;
+
+unsigned long currentTimeL, previousTimeL;
+double elapsedTimeL;
+
+double error_R, lastError_R, cumError_R, rateError_R;
+double error_L, lastError_L, cumError_L, rateError_L;
+
+
+
+
+Encoder encoderR(3, 6);
+Encoder encoderL(2, 5);
+
+
+double PIDmotorcontrollerR(double thetaNewR){
+    currentTimeR = millis();
+    elapsedTimeR = (double)(currentTimeR - previousTimeR)/1000;
+    double outR;
+    error_R = (thetaDesired - thetaNewR);
+   
+    //Serial.println(error);
+       
+    cumError_R += (error_R * elapsedTimeR);
+    rateError_R = (error_R - lastError_R) / elapsedTimeR;
+    outR = (kp * error_R) + (ki * cumError_R) + (kd * rateError_R);
+
+    if(outR > 0){
+      digitalWrite(DirectionR, HIGH);
+      //Serial.print("high");
+    } else{
+      digitalWrite(DirectionR, LOW);
+     // Serial.print("low");
+    }
+
+    outR = abs(outR);
+   
+    if(outR > 8){
+      outR = 8;
+    }
+    //Serial.println(error);
+    lastError_R = error_R;
+    previousTimeR = currentTimeR;
+
+    return outR;
+ 
+}
+
+double PIDmotorcontrollerL(double thetaNewL){
+    currentTimeL = millis();
+    elapsedTimeL = (double)(currentTimeL - previousTimeL)/1000;
+    double outL;
+    error_L = (-thetaDesired - thetaNewL);
+       
+    cumError_L += (error_L * elapsedTimeL);
+    rateError_L = (error_L - lastError_L) / elapsedTimeL;
+    outL = (kp * error_L) + (ki * cumError_L) + (kd * rateError_L);
+
+    if(outL > 0){
+      digitalWrite(DirectionL, HIGH);
+      //Serial.print("high");
+    } else{
+      digitalWrite(DirectionL, LOW);
+     // Serial.print("low");
+    }
+
+    Serial.println(error_L);
+    
+    outL = abs(outL);
+   
+    if(outL > 8){
+      outL = 8;
+    }
+    
+    lastError_L = error_L;
+    previousTimeL = currentTimeL;
+
+    return outL;
+ 
+}
+
+void setup() {
+  Serial.begin(9600);
+  
+  pinMode(enablePin, OUTPUT);
+  digitalWrite(enablePin, HIGH);
+  
+  pinMode(voltagePinR, OUTPUT);
+  pinMode(voltagePinL, OUTPUT);
+  
+  pinMode(DirectionR, OUTPUT);
+  
+  pinMode(DirectionL, OUTPUT);
+ 
+}
+
+
+void loop() {
+  thetaNewR = double((6.2832/3200))*encoderR.read();
+  thetaNewL = double((-6.2832/3200))*encoderL.read();
+  
+  pwmOutputR = (255/8)*PIDmotorcontrollerR(thetaNewR);
+  pwmOutputL = (255/8)*PIDmotorcontrollerL(thetaNewL);
+
+  //Serial.print("pwmOutputR: ");  Serial.print(pwmOutputR); Serial.print("pwmOutputL: ");  Serial.println(pwmOutputL);
+  //Serial.println(encoderL.read());
+  
+    
+  //Serial.print("Left Error: "); Serial.print(error_L); Serial.print("     "); Serial.print("Right Error: ");  Serial.println(error_R); 
+
+  //Serial.println(encoderL.read());
+  
+  delay(25);
+  
+  analogWrite(voltagePinR, pwmOutputR);
+  analogWrite(voltagePinL, pwmOutputL);
+}
