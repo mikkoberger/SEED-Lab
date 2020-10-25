@@ -184,8 +184,7 @@ void setup() {
 
 
 void loop(){
-  switch(State) {
-    case 0:
+      error_R, error_L = thetaDesired;
       while((abs(error_R) + abs(error_L))/2 > 0.1){
         thetaNewR = double((6.2832/3200))*encoderR.read();
         thetaNewL = double((-6.2832/3200))*encoderL.read();
@@ -198,17 +197,17 @@ void loop(){
         analogWrite(voltagePinR, pwmOutputR_Rotate);
         analogWrite(voltagePinL, pwmOutputL_Rotate);
   }
-      State = 1;
       
-   case 1:
       currentTimeR, previousTimeR = 0;
       elapsedTimeR = 0;
 
       currentTimeL, previousTimeL = 0;
       elapsedTimeL = 0;
 
-      error_R, lastError_R, cumError_R, rateError_R = 0;
-      error_L, lastError_L, cumError_L, rateError_L = 0;
+      lastError_R, cumError_R, rateError_R = 0;
+      lastError_L, cumError_L, rateError_L = 0;
+
+      error_R, error_L = distDesired;
       
       while ((abs(error_R) + abs(error_L))/2 > 0.1){
         distNewR = double((0.45883/3200))*encoderR.read();
@@ -222,11 +221,6 @@ void loop(){
         analogWrite(voltagePinR, pwmOutputR_Forward);
         analogWrite(voltagePinL, pwmOutputL_Forward);
       }
-      
-      State = 2;
 
-   case 2:
       digitalWrite(enablePin, LOW);
-      break;
   }
-}
