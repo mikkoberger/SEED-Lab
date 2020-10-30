@@ -13,19 +13,18 @@ int DirectionL = 8;
 
 double sampleRate = 0.05; // 20 times per second
 double Delay = sampleRate * 1000;
+//PID values
+double ki = 0.2; //0.9;//1.8;//.9;// 0.6;//0.07;//
+double kp = 4.0; //1.5;//3.2;// 1.5; //0.7;//4.75; //
+double kd = 0.07;//.1;//.2;//0.05; //1.2;//.53; //
 
-double ki_R = 0.25; //0.9;//1.8;//.9;// 0.6;//0.07;//
-double kp_R = 4.0; //1.5;//3.2;// 1.5; //0.7;//4.75; //
-double kd_R = 0.07;//.1;//.2;//0.05; //1.2;//.53; //
 
-double ki_L = 0.25; 
-double kp_L = 4.0;
-double kd_L = 0.07;
 
+//Initialize variables
 double distNewR;
 double distNewL;
-double distDesired = 1.00;
-
+double distDesired = 7*.305*.96;
+//1 .98 .96
 
 unsigned long currentTimeR, previousTimeR;
 double elapsedTimeR;
@@ -42,7 +41,7 @@ double error_L, lastError_L, cumError_L, rateError_L;
 Encoder encoderR(3, 6);
 Encoder encoderL(2, 5);
 
-
+//PID for right wheel
 double PIDmotorcontrollerR(double distNewR){
     currentTimeR = millis();
     elapsedTimeR = (double)(currentTimeR - previousTimeR)/1000;
@@ -53,7 +52,7 @@ double PIDmotorcontrollerR(double distNewR){
        
     cumError_R += (error_R * elapsedTimeR);
     rateError_R = (error_R - lastError_R) / elapsedTimeR;
-    outR = (kp_R * error_R) + (ki_R * cumError_R) + (kd_R * rateError_R);
+    outR = (kp * error_R) + (ki * cumError_R) + (kd * rateError_R);
 
     if(outR > 0){
       digitalWrite(DirectionR, HIGH);
@@ -75,7 +74,7 @@ double PIDmotorcontrollerR(double distNewR){
     return outR;
  
 }
-
+//PID for left wheel
 double PIDmotorcontrollerL(double distNewL){
     currentTimeL = millis();
     elapsedTimeL = (double)(currentTimeL - previousTimeL)/1000;
@@ -84,7 +83,7 @@ double PIDmotorcontrollerL(double distNewL){
        
     cumError_L += (error_L * elapsedTimeL);
     rateError_L = (error_L - lastError_L) / elapsedTimeL;
-    outL = (kp_L * error_L) + (ki_L * cumError_L) + (kd_L * rateError_L);
+    outL = (kp * error_L) + (ki * cumError_L) + (kd * rateError_L);
 
     if(outL > 0){
       digitalWrite(DirectionL, HIGH);
@@ -108,7 +107,7 @@ double PIDmotorcontrollerL(double distNewL){
     return outL;
  
 }
-
+//PIN set up
 void setup() {
   Serial.begin(9600);
   
@@ -128,19 +127,13 @@ void setup() {
 
 
 void loop() {
+  //Calculating updated distane needed
   distNewR = double((0.45883/3200))*encoderR.read();
   distNewL = double((-0.45883/3200))*encoderL.read();
-  
+ //convert to PWM 
   pwmOutputR = (255/8)*PIDmotorcontrollerR(distNewR);
   pwmOutputL = (255/8)*PIDmotorcontrollerL(distNewL);
 
-  //Serial.print("pwmOutputR: ");  Serial.print(pwmOutputR); Serial.print("pwmOutputL: ");  Serial.println(pwmOutputL);
-  //Serial.println(encoderL.read());
-  
-    
-  //Serial.print("Left Error: "); Serial.print(error_L); Serial.print("     "); Serial.print("Right Error: ");  Serial.println(error_R); 
-
-  //Serial.println(encoderL.read());
   
   delay(Delay);
   
