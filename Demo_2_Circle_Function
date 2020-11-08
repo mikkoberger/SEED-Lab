@@ -1,0 +1,144 @@
+#include <Encoder.h>
+#include <Wire.h>
+
+#define SLAVE_ADDRESS 0x04
+// Create relationship between motor input voltagePinR
+int voltagePinR = 9;
+int voltagePinL = 10;
+int pwmOutputR;
+int pwmOutputL;
+int enablePinR = 4;
+int DirectionR  = 7;
+int DirectionL = 8;
+
+double sampleRate = 0.05; // 20 times per second
+double Delay = sampleRate * 1000;
+
+double ki_R = 1; //0.9;//1.8;//.9;// 0.6;//0.07;//
+double kp_R = 1.0; //1.5;//3.2;// 1.5; //0.7;//4.75; //
+double kd_R = 0.2;//.1;//.2;//0.05; //1.2;//.53; //
+
+double ki_L = 1; 
+double kp_L = 1.0;
+double kd_L = 0.2;
+double Stop = 1;
+
+double distOldR, distNewR, deltaR;
+double distOldL, distNewL, deltaL;
+double velocDesiredR = 0.61; //3.43; 
+double velocDesiredL = 0.3; //1.92;
+double newDistR;
+
+
+unsigned long currentTimeR, previousTimeR;
+double elapsedTimeR;
+
+unsigned long currentTimeL, previousTimeL;
+double elapsedTimeL;
+
+double error_R, lastError_R, cumError_R, rateError_R;
+double error_L, lastError_L, cumError_L, rateError_L;
+
+double error_R_veloc, error_L_veloc;
+double lastError_R_veloc, lastError_L_veloc;
+
+Encoder encoderR(3, 6);
+Encoder encoderL(2, 5);
+
+double VelocitymotorcontrollerR(double deltaR){
+    double outR;
+    currentTimeR = millis();
+    elapsedTimeR = (double)(currentTimeR - previousTimeR)/1000;
+    error_R_veloc = (velocDesiredR - deltaR);
+       
+    cumError_R += (error_R_veloc * elapsedTimeR);
+    rateError_R = (error_R - lastError_R) / elapsedTimeR;
+    outR = (ki_R * cumError_R * Stop);
+
+    if(outR > 0){
+      digitalWrite(DirectionR, HIGH);
+    } else{
+      digitalWrite(DirectionR, LOW);
+    }
+
+    outR = abs(outR);
+   
+    if(outR > 5){
+      outR = 5;
+    }
+    
+    lastError_R_veloc = error_R_veloc;
+    previousTimeR = currentTimeR;
+
+    return outR;
+ 
+}
+
+double VelocitymotorcontrollerL(double deltaL){
+    double outL;
+    currentTimeL = millis();
+    elapsedTimeL = (double)(currentTimeL - previousTimeL)/1000;
+    error_L_veloc = (velocDesiredL - deltaL);
+       
+    cumError_L += (error_L_veloc * elapsedTimeL);
+    rateError_L = (error_L - lastError_L) / elapsedTimeL;
+    outL = (ki_L * cumError_L * Stop);
+
+    if(outL > 0){
+      digitalWrite(DirectionL, HIGH);
+    } else{
+      digitalWrite(DirectionL, LOW);
+    }
+    
+    outL = abs(outL);
+   
+    if(outL > 5){
+      outL = 5;
+    }
+    
+    lastError_L_veloc = error_L_veloc;
+    previousTimeL = currentTimeL;
+
+    return outL;
+ 
+}
+
+void setup() {
+  Serial.begin(9600);
+  
+  pinMode(enablePinR, OUTPUT);
+  digitalWrite(enablePinR, HIGH);
+  
+  pinMode(voltagePinR, OUTPUT);
+  pinMode(voltagePinL, OUTPUT);
+  
+  pinMode(DirectionR, OUTPUT);
+  
+  pinMode(DirectionL, OUTPUT);
+ 
+}
+
+
+void loop() {
+  distOldR = double((0.47/3200))*encoderR.read();
+  delay(20);
+  distNewR = double((0.47/3200))*encoderR.read();
+  deltaR = abs(distNewR - distOldR)/(0.02);
+  
+  distOldL = double((-0.47/3200))*encoderL.read();
+  delay(20);
+  distNewL = double((-0.47/3200))*encoderL.read();
+  deltaL = abs(distNewL - distOldL)/(0.02);
+
+  if(encoderR.read() > 18100){
+    Stop = 0;
+  }
+  
+  pwmOutputR = (255/5)*VelocitymotorcontrollerR(deltaR);
+  pwmOutputL = (255/5)*VelocitymotorcontrollerL(deltaL);
+  
+  delay(Delay);
+  
+  analogWrite(voltagePinR, pwmOutputR);
+  analogWrite(voltagePinL, pwmOutputL);
+}
