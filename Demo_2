@@ -212,7 +212,16 @@ double PIDmotorcontrollerL_For(double distNewL){
 // Function to recieve quadrant info from Computer Vision and store in received_int
 void receiveAngle(){
   while(Wire.available()){
-    receiveTheta = Wire.read();
+    int thetaArray[5];
+    int i = 0;
+    for(i; i<5 ; i++){ 
+          
+    thetaArray[i] = Wire.read(); 
+ 
+    
+    }
+    receiveTheta = (((10*(thetaArray[0])) + (1*(thetaArray[1])) + ((1/10))*(thetaArray[3])) +((1/100)*(thetaArray[4])));
+    receiveTheta = receiveLength *(3.1415/180);
     Serial.print(receiveTheta);
   }
 }
@@ -226,7 +235,14 @@ void receiveAruco(){
 
 void receiveDistance(){
   while(Wire.available()){
-    receiveLength = Wire.read();
+    int distanceArray[6];
+    int d;
+    for( d = 0; d<6; d++){
+      distanceArray[d] = Wire.read();
+    }
+    
+    receiveLength = (((100*(distanceArray[0])) + (10*(distanceArray[1])) + (1*(distanceArray[2])) + ((1/10))*(distanceArray[4])) +((1/100)*(distanceArray[5])));  
+    receiveLength = (receiveLength*.01) -.3048;
     Serial.print(receiveLength);
   }
 }
@@ -263,12 +279,15 @@ void setup() {
 void loop() {
   
   switch(State){
-    Wire.onReceive(receiveAruco);
+   
   case(0):
+    Wire.onReceive(receiveAruco);
+    receive_int = 1;
     while(receive_int != 0){
-    pwmOutputR_Rot = 125;
-    pwmOutputL_Rot = 125;
-    digitalWrite(DirectionL, HIGH);
+    Serial.println("in");
+    analogWrite(voltagePinR, 30);
+    analogWrite(voltagePinL, 30);
+    digitalWrite(DirectionL, LOW);
     digitalWrite(DirectionR, HIGH);
 
     }
@@ -338,4 +357,3 @@ delay(1000);
   }
 
 }
-  
