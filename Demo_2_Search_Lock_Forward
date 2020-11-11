@@ -1,0 +1,370 @@
+#include <Encoder.h>
+#include <Wire.h>
+
+#define SLAVE_ADDRESS 0x04
+//Rotate
+// Create relationship between motor input voltagePinR
+int receive_int=1;
+int toSend=1;
+double receiveLength = 0;
+int voltagePinR = 9;
+int voltagePinL = 10;
+int pwmOutputR_Rot;
+int pwmOutputL_Rot;
+int enablePin = 4;
+int DirectionR  = 7;
+int DirectionL = 8;
+int State = 0;
+
+double sampleRate = 0.05; // 20 times per second
+double Delay = sampleRate * 1000;
+//Rotate PID values
+double ki_R = 0.06; //0.9;//1.8;//.9;// 0.6;//0.07;  //
+double kp_R = 2.0; //1.5;//3.2;// 1.5; //0.7;//4.75; //
+double kd_R = 0.017;//.1;//.2;//0.05; //1.2;//.53;    //
+
+
+double thetaNewR;
+double thetaNewL;
+//We had a multiplier to account for slipping wheels
+double thetaDesired = 3.14*(1.7);
+//1.57 2.36 3.14
+//1.6 1.8 1.83
+
+unsigned long currentTimeR_Rot, previousTimeR_Rot;
+double elapsedTimeR_Rot;
+
+unsigned long currentTimeL_Rot, previousTimeL_Rot;
+double elapsedTimeL_Rot;
+
+double error_R_Rot, lastError_R_Rot, cumError_R_Rot, rateError_R_Rot;
+double error_L_Rot, lastError_L_Rot, cumError_L_Rot, rateError_L_Rot;
+
+//Forward
+//Forward PID Values
+double ki_F = 0.02; 
+double kp_F = 4.0;
+double kd_F = 0.07;
+
+double distNewR = 0;
+double distNewL = 0;
+double distDesired = 0.42;
+
+int pwmOutputR_For;
+int pwmOutputL_For;
+
+
+unsigned long currentTimeR_For, previousTimeR_For;
+double elapsedTimeR_For;
+
+unsigned long currentTimeL_For, previousTimeL_For;
+double elapsedTimeL_For;
+
+double error_R_For, lastError_R_For, cumError_R_For, rateError_R_For;
+double error_L_For, lastError_L_For, cumError_L_For, rateError_L_For;
+
+int distArray[5];
+int bufferArray[9];
+
+int receiveCount = 0;
+double receiveDist;
+double receiveTheta;
+
+
+Encoder encoderR(3, 6);
+Encoder encoderL(2, 5);
+
+//PID for right wheel roatate
+double PIDmotorcontrollerR_Rot(double thetaNewR){
+    currentTimeR_Rot = millis();
+    elapsedTimeR_Rot = (double)(currentTimeR_Rot - previousTimeR_Rot)/1000;
+    double outR_Rot;
+    error_R_Rot = (receiveTheta - thetaNewR);
+   
+    //Serial.println(error);
+       
+    cumError_R_Rot += (error_R_Rot * elapsedTimeR_Rot);
+    rateError_R_Rot = (error_R_Rot - lastError_R_Rot) / elapsedTimeR_Rot;
+    outR_Rot = (kp_R * error_R_Rot) + (ki_R * cumError_R_Rot) + (kd_R * rateError_R_Rot);
+
+    if(outR_Rot > 0){
+      digitalWrite(DirectionR, HIGH);
+    } else{
+      digitalWrite(DirectionR, LOW);
+    }
+
+    outR_Rot = abs(outR_Rot);
+   
+    if(outR_Rot > 8){
+      outR_Rot = 8;
+    }
+    //Serial.println("ErrorR:    ErrorL: ");
+    //Serial.print(error_R_Rot);
+    //Serial.print("    ");
+    lastError_R_Rot = error_R_Rot;
+    previousTimeR_Rot = currentTimeR_Rot;
+
+    return outR_Rot;
+ 
+}
+
+//PID for left wheel roatate
+double PIDmotorcontrollerL_Rot(double thetaNewL){
+    currentTimeL_Rot = millis();
+    elapsedTimeL_Rot = (double)(currentTimeL_Rot - previousTimeL_Rot)/1000;
+    double outL_Rot;
+    error_L_Rot = (-receiveTheta - thetaNewL);
+       
+    cumError_L_Rot += (error_L_Rot * elapsedTimeL_Rot);
+    rateError_L_Rot = (error_L_Rot - lastError_L_Rot) / elapsedTimeL_Rot;
+    outL_Rot = (kp_R * error_L_Rot) + (ki_R * cumError_L_Rot) + (kd_R * rateError_L_Rot);
+
+    if(outL_Rot > 0){
+      digitalWrite(DirectionL, HIGH);
+    } else{
+      digitalWrite(DirectionL, LOW);
+    }
+
+    outL_Rot = abs(outL_Rot);
+   
+    if(outL_Rot > 8){
+      outL_Rot = 8;
+    }
+    
+    lastError_L_Rot = error_L_Rot;
+    previousTimeL_Rot = currentTimeL_Rot;
+
+    return outL_Rot;
+ 
+}
+
+//PID for right wheel forward
+double PIDmotorcontrollerR_For(double distNewR){
+    currentTimeR_For = millis();
+    elapsedTimeR_For = (double)(currentTimeR_For - previousTimeR_For)/1000;
+    double outR_For;
+    error_R_For = (distDesired - distNewR);
+       
+    cumError_R_For += (error_R_For * elapsedTimeR_For);
+    rateError_R_For = (error_R_For - lastError_R_For) / elapsedTimeR_For;
+    outR_For = (kp_F * error_R_For) + (ki_F * cumError_R_For) + (kd_F * rateError_R_For);
+
+    if(outR_For > 0){
+      digitalWrite(DirectionR, HIGH);
+    } else{
+      digitalWrite(DirectionR, LOW);
+    }
+
+    outR_For = abs(outR_For);
+   
+    if(outR_For > 8){
+      outR_For = 8;
+    }
+    //Serial.println(error);
+     //Serial.println(error_R_For);
+    lastError_R_For = error_R_For;
+    previousTimeR_For = currentTimeR_For;
+
+    return outR_For;
+ 
+}
+
+//PID for left wheel forward
+double PIDmotorcontrollerL_For(double distNewL){
+    currentTimeL_For = millis();
+    elapsedTimeL_For = (double)(currentTimeL_For - previousTimeL_For)/1000;
+    double outL_For;
+    error_L_For = (distDesired - distNewL);
+       
+    cumError_L_For += (error_L_For * elapsedTimeL_For);
+    rateError_L_For = (error_L_For - lastError_L_For) / elapsedTimeL_For;
+    outL_For = (kp_F * error_L_For) + (ki_F * cumError_L_For) + (kd_F * rateError_L_For);
+
+    if(outL_For > 0){
+      digitalWrite(DirectionL, HIGH);
+      //Serial.print("high");
+    } else{
+      digitalWrite(DirectionL, LOW);
+     // Serial.print("low");
+    }
+
+//    Serial.println(error_L);
+    
+    outL_For = abs(outL_For);
+   
+    if(outL_For > 8){
+      outL_For = 8;
+    }
+    //Serial.println(error_L_For);
+
+    lastError_L_For = error_L_For;
+    previousTimeL_For = currentTimeL_For;
+
+    return outL_For;
+ 
+}
+// Function to recieve quadrant info from Computer Vision and store in received_int
+void Receive(){
+    for(int i = 0; i < 2; i++){ 
+    int x = Wire.read();
+    if((x != -1)){
+      bufferArray[receiveCount] = x;
+      //Serial.print(x);
+      }
+    }
+    receiveCount++; 
+
+    receiveTheta = (1000*(bufferArray[0])) + (100*(bufferArray[1])) + (10)*(bufferArray[2]) + (1)*(bufferArray[3]);
+    receiveTheta = float(receiveTheta)/100.00;
+
+    receiveDist = (10000*(bufferArray[4])) + (1000*(bufferArray[5])) + (100)*(bufferArray[6]) + (10)*(bufferArray[7]) + 1*(bufferArray[8]);
+    receiveDist = float(receiveDist)/100.00;
+    
+//    if(bufferArray[0] == 1){
+//      receiveTheta1 = -1;
+//    }
+    
+    Serial.println(receiveTheta);
+    Serial.println(receiveDist);
+}
+ 
+
+void receiveAruco(){
+  while(Wire.available()){
+    receive_int = Wire.read();
+    //Serial.println(receive_int);
+  }
+}
+
+// Send most up to date position back to Pi to display on LCD screen
+void sendData(){
+  Wire.write(toSend); // Sending one byte
+}
+
+//Pin setup
+void setup() {
+  Serial.begin(9600);
+  
+  pinMode(enablePin, OUTPUT);
+  digitalWrite(enablePin, HIGH);
+  
+  pinMode(voltagePinR, OUTPUT);
+  pinMode(voltagePinL, OUTPUT);
+  
+  pinMode(DirectionR, OUTPUT);
+  
+  pinMode(DirectionL, OUTPUT);
+
+  // Pi I2C stuff
+  pinMode(13, OUTPUT);
+  Wire.begin(SLAVE_ADDRESS);
+ 
+}
+
+//Switch statements to go between rotate, forward and stop
+void loop() {
+  switch(State){
+  case(0):
+    encoderR.write(0);
+    encoderL.write(0); 
+    receiveTheta = 0.9;
+    
+    while(receive_int != 0){
+      Wire.onReceive(receiveAruco);
+      thetaNewR = double( 6.2832/3200)*encoderR.read();
+      thetaNewL = double(-6.2832/3200)*encoderL.read();
+      
+      pwmOutputR_Rot = (255/5)*PIDmotorcontrollerR_Rot(thetaNewR);
+      pwmOutputL_Rot = (255/5)*PIDmotorcontrollerL_Rot(thetaNewL);
+
+      delay(15);
+
+      analogWrite(voltagePinR, pwmOutputR_Rot);
+      analogWrite(voltagePinL, pwmOutputL_Rot);
+      
+      if(receive_int == 1 && error_R_Rot < 0.2){
+        digitalWrite(enablePin, LOW);
+        delay(2000);
+        digitalWrite(enablePin, HIGH);
+        encoderR.write(0);
+        encoderL.write(0); 
+      }
+    }
+    
+//    while(encoderR.read() < 100){
+//      analogWrite(voltagePinR, 75);
+//      analogWrite(voltagePinL, 75);
+//      digitalWrite(DirectionL, LOW);
+//      digitalWrite(DirectionR, HIGH);
+//    }
+//    analogWrite(voltagePinR, 30);
+//    analogWrite(voltagePinL, 30);
+//    digitalWrite(DirectionL, LOW);
+//    digitalWrite(DirectionR, HIGH);
+//    }
+
+    receiveTheta = 0;
+    digitalWrite(enablePin, LOW);
+    Wire.onRequest(sendData);
+
+    delay(500);
+    State = 1;
+     
+   //Use rotate PID util desired angle
+  case(1):
+        digitalWrite(enablePin, HIGH);
+        Wire.onReceive(Receive); // Recieve angle from Computer Vision
+
+        error_R
+        
+        encoderR.write(0);
+        encoderL.write(0); 
+
+        while(((abs(error_R_Rot)+(abs(error_L_Rot))))/2 > 0.2){
+        
+          thetaNewR = double((6.2832/3200))*encoderR.read();
+          thetaNewL = double(-6.2832/3200)*encoderL.read();
+      
+          pwmOutputR_Rot = (255/5)*PIDmotorcontrollerR_Rot(thetaNewR);
+          pwmOutputL_Rot = (255/5)*PIDmotorcontrollerL_Rot(thetaNewL);
+ 
+          delay(15);
+      
+          analogWrite(voltagePinR, pwmOutputR_Rot);
+          analogWrite(voltagePinL, pwmOutputL_Rot);
+        
+      }
+      delay(1000);
+      State = 2;
+  
+  case(2):
+
+    error_R_For = receiveLength;
+    error_L_For = receiveLength;
+
+   encoderR.write(0);
+   encoderL.write(0);
+  
+    while((abs(error_R_For)+abs(error_L_For))/2 > 0.01) {
+      Serial.println("OUT");
+      distNewR = double((0.45883/3200))*encoderR.read();
+      distNewL = double((-.45883/3200))*encoderL.read();
+  
+      pwmOutputR_For = (255/5)*PIDmotorcontrollerR_For(distNewR);
+      pwmOutputL_For = (255/5)*PIDmotorcontrollerL_For(distNewL);
+      
+      delay(25);
+  
+      analogWrite(voltagePinR, pwmOutputR_For);
+      analogWrite(voltagePinL, pwmOutputL_For);
+
+  }
+  
+  State = 3;
+  //Stop moving
+  case(3):
+    //Serial.println("DONE");
+    digitalWrite(enablePin, LOW);
+  }
+
+}
